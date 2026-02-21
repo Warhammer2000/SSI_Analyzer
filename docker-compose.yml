@@ -2,31 +2,33 @@ services:
   postgres:
     image: postgres:17
     environment:
-      POSTGRES_USER: ssi_user
-      POSTGRES_PASSWORD: ssi_password
-      POSTGRES_DB: ssi_analyzer
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: SSI_Analyzer
     ports:
       - "5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ssi_user -d ssi_analyzer"]
+      test: ["CMD-SHELL", "pg_isready -U postgres -d SSI_Analyzer"]
       interval: 5s
       timeout: 5s
       retries: 5
 
-  api:
+  app:
     build:
-      context: ./SSI_Analyzer_backend
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: SSI_Analyzer_backend/Dockerfile
     ports:
       - "5136:8080"
     environment:
       ASPNETCORE_ENVIRONMENT: Development
-      ConnectionStrings__DefaultConnection: "Host=postgres;Port=5432;Database=ssi_analyzer;Username=ssi_user;Password=ssi_password"
+      ConnectionStrings__DefaultConnection: "Host=postgres;Port=5432;Database=SSI_Analyzer;Username=postgres;Password=postgres"
       Jwt__Key: "super-secret-key-at-least-32-characters-long-for-docker"
       Jwt__Issuer: "SsiAnalyzer"
       Jwt__Audience: "SsiAnalyzerApp"
+      OpenAI__ApiKey: ""
+      OpenAI__Model: "gpt-4o-mini"
     depends_on:
       postgres:
         condition: service_healthy

@@ -190,22 +190,44 @@ export default function Import() {
               </div>
             </div>
           ) : (
-            <div className="text-center py-12">
-              <div className="bg-[#f3f2ef] w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
-                <Download className="w-8 h-8 text-[#00000099]" />
+            <div className="py-8 px-4">
+              <div className="flex items-center gap-3 mb-6">
+                <div className="bg-[#eef3f8] w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0">
+                  <Download className="w-6 h-6 text-[#0a66c2]" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-[#000000e6]">Chrome Extension</h3>
+                  <p className="text-sm text-[#00000099]">Auto-capture SSI data with one click</p>
+                </div>
               </div>
-              <h3 className="text-lg font-bold text-[#000000e6] mb-2">Browser Extension</h3>
-              <p className="text-[#00000099] max-w-md mx-auto mb-6">
-                Install our Chrome extension to auto-capture SSI data with one click.
-              </p>
-              <button
-                disabled
-                className="bg-[#e0e0e0] text-[#00000099] px-6 py-2 rounded-full font-semibold cursor-not-allowed"
-                title="Coming soon"
+
+              <div className="space-y-4 mb-6">
+                <h4 className="text-sm font-semibold text-[#000000e6]">Installation</h4>
+                <ol className="list-decimal list-inside space-y-2 text-sm text-[#00000099]">
+                  <li>Open <code className="bg-[#f3f2ef] px-1.5 py-0.5 rounded text-xs font-mono">chrome://extensions</code> in Chrome</li>
+                  <li>Enable <strong className="text-[#000000e6]">Developer mode</strong> (top right toggle)</li>
+                  <li>Click <strong className="text-[#000000e6]">Load unpacked</strong></li>
+                  <li>Select the <code className="bg-[#f3f2ef] px-1.5 py-0.5 rounded text-xs font-mono">SSI_Analyzer_extension</code> folder</li>
+                </ol>
+              </div>
+
+              <div className="space-y-4 mb-6">
+                <h4 className="text-sm font-semibold text-[#000000e6]">Usage</h4>
+                <ol className="list-decimal list-inside space-y-2 text-sm text-[#00000099]">
+                  <li>Click the extension icon and <strong className="text-[#000000e6]">sign in</strong></li>
+                  <li>Navigate to your LinkedIn SSI page</li>
+                  <li>Click <strong className="text-[#000000e6]">"Save to SSI Analyzer"</strong> button on the page</li>
+                </ol>
+              </div>
+
+              <a
+                href="https://www.linkedin.com/sales/ssi"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center justify-center gap-2 bg-[#0a66c2] text-white px-6 py-2 rounded-full font-semibold hover:bg-[#004182] transition-colors"
               >
-                Download Extension
-              </button>
-              <p className="text-xs text-[#00000099] mt-2">Coming soon</p>
+                Open SSI Page
+              </a>
             </div>
           )}
         </div>

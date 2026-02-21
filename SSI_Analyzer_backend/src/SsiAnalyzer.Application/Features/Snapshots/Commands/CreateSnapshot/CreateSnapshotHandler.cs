@@ -21,7 +21,7 @@ public class CreateSnapshotHandler : IRequestHandler<CreateSnapshotCommand, Guid
         {
             Id = Guid.NewGuid(),
             UserId = _currentUser.UserId!.Value,
-            RecordedAt = request.RecordedAt,
+            RecordedAt = DateTime.SpecifyKind(request.RecordedAt, DateTimeKind.Utc),
             EstablishBrand = request.EstablishBrand,
             FindPeople = request.FindPeople,
             EngageInsights = request.EngageInsights,

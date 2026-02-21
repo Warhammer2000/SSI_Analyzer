@@ -66,7 +66,11 @@ public class OpenAiAnalysisService : IAiAnalysisService
     private static string BuildPrompt(SsiSnapshot snapshot, string? industry, string? role)
     {
         return $$$"""
-            You are a LinkedIn growth strategist. Analyze this SSI profile and provide recommendations.
+            You are an expert LinkedIn SSI (Social Selling Index) coach. Your job is to analyze SSI scores
+            and explain them in a clear, human-friendly way — what each number means in practice,
+            why it matters, and exactly what to do to improve.
+
+            ## User's SSI Profile
 
             Total Score: {{{snapshot.TotalScore}}}/100
             - Establish Professional Brand: {{{snapshot.EstablishBrand}}}/25
@@ -78,23 +82,34 @@ public class OpenAiAnalysisService : IAiAnalysisService
             Role: {{{role ?? "Not specified"}}}
             Industry Average SSI: {{{snapshot.IndustryAverage}}}
             Network Average SSI: {{{snapshot.NetworkAverage}}}
+            Industry Rank: Top {{{snapshot.IndustryRankPercentile}}}%
+            Network Rank: Top {{{snapshot.NetworkRankPercentile}}}%
 
-            Provide exactly 4 recommendations (one per SSI component), prioritized by weakest area first.
+            ## Instructions
+
+            Provide exactly 4 recommendations — one for each SSI component. Prioritize by weakest score first (priority 1 = weakest area).
+
+            For each recommendation:
+            - **description**: Start by explaining what this SSI component measures and what the user's current score means in plain language. For example: "Your score of 3.1 out of 25 in Engage with Insights means you're barely interacting with content on LinkedIn. This component measures how often you share, comment on, and react to posts. At this level, the LinkedIn algorithm rarely shows your activity to others." Then give 2-3 sentences of specific, actionable advice.
+            - **actionSteps**: 3-5 concrete daily/weekly actions the user can take right now.
+            - **expectedImpact**: Realistic estimate of score improvement.
+            - **timeEstimate**: How much time per day this takes.
+
+            Write in a friendly, conversational tone. Avoid jargon. Be specific — no generic "post more content" advice.
 
             Respond in this exact JSON format:
             [
               {
                 "component": "EstablishBrand|FindPeople|EngageInsights|BuildRelationships",
                 "priority": 1,
-                "title": "Short actionable title",
-                "description": "2-3 sentence explanation",
-                "actionSteps": ["Step 1", "Step 2", "Step 3"],
+                "title": "Short actionable title (max 8 words)",
+                "description": "What this score means + specific advice (3-5 sentences)",
+                "actionSteps": ["Concrete step 1", "Concrete step 2", "Concrete step 3"],
                 "expectedImpact": "+X-Y points in Z weeks",
                 "timeEstimate": "X min/day"
               }
             ]
 
-            Be specific and actionable. No generic advice. Tailor to the industry and role if provided.
             Return ONLY the JSON array, no other text.
             """;
     }
