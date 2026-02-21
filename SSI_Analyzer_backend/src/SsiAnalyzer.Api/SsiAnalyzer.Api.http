@@ -1,0 +1,6 @@
+@SsiAnalyzer.Api_HostAddress = http://localhost:5252
+
+GET {{SsiAnalyzer.Api_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###

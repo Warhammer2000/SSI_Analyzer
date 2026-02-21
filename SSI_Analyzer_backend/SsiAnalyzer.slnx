@@ -1,0 +1,12 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/SsiAnalyzer.Api/SsiAnalyzer.Api.csproj" />
+    <Project Path="src/SsiAnalyzer.Application/SsiAnalyzer.Application.csproj" />
+    <Project Path="src/SsiAnalyzer.Domain/SsiAnalyzer.Domain.csproj" />
+    <Project Path="src/SsiAnalyzer.Infrastructure/SsiAnalyzer.Infrastructure.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/SsiAnalyzer.IntegrationTests/SsiAnalyzer.IntegrationTests.csproj" />
+    <Project Path="tests/SsiAnalyzer.UnitTests/SsiAnalyzer.UnitTests.csproj" />
+  </Folder>
+</Solution>
