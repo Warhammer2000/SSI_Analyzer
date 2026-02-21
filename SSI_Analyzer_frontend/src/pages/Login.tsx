@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import { useLoginMutation } from '../hooks/useAuth';
 import { BarChart3 } from 'lucide-react';
 
 export default function Login() {
@@ -9,12 +10,12 @@ export default function Login() {
   const [error, setError] = useState('');
   const { login } = useAuth();
   const navigate = useNavigate();
+  const loginMutation = useLoginMutation();
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
 
-    // Simple validation
     if (!email.includes('@')) {
       setError('Please enter a valid email address');
       return;
@@ -24,8 +25,13 @@ export default function Login() {
       return;
     }
 
-    login(email);
-    navigate('/dashboard');
+    try {
+      const result = await loginMutation.mutateAsync({ email, password });
+      login(result.token, result.userId, result.email);
+      navigate('/dashboard');
+    } catch (err: any) {
+      setError(err.response?.data?.message || 'Invalid email or password');
+    }
   };
 
   return (
@@ -68,9 +74,10 @@ export default function Login() {
           </div>
           <button
             type="submit"
-            className="w-full bg-[#0a66c2] text-white py-3 rounded-full font-bold hover:bg-[#004182] transition-colors mt-2"
+            disabled={loginMutation.isPending}
+            className="w-full bg-[#0a66c2] text-white py-3 rounded-full font-bold hover:bg-[#004182] transition-colors mt-2 disabled:opacity-50"
           >
-            Sign In
+            {loginMutation.isPending ? 'Signing in...' : 'Sign In'}
           </button>
         </form>
 

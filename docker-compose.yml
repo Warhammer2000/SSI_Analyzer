@@ -1,0 +1,35 @@
+services:
+  postgres:
+    image: postgres:17
+    environment:
+      POSTGRES_USER: ssi_user
+      POSTGRES_PASSWORD: ssi_password
+      POSTGRES_DB: ssi_analyzer
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ssi_user -d ssi_analyzer"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  api:
+    build:
+      context: ./SSI_Analyzer_backend
+      dockerfile: Dockerfile
+    ports:
+      - "5136:8080"
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      ConnectionStrings__DefaultConnection: "Host=postgres;Port=5432;Database=ssi_analyzer;Username=ssi_user;Password=ssi_password"
+      Jwt__Key: "super-secret-key-at-least-32-characters-long-for-docker"
+      Jwt__Issuer: "SsiAnalyzer"
+      Jwt__Audience: "SsiAnalyzerApp"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+volumes:
+  pgdata:

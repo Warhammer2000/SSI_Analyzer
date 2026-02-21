@@ -1,27 +1,23 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { v4 as uuidv4 } from 'uuid';
-import { addSnapshot } from '../lib/storage';
-import { SsiSnapshot } from '../types';
-import { useAuth } from '../contexts/AuthContext';
+import { useCreateSnapshot } from '../hooks/useSnapshots';
+import { CreateSnapshotRequest } from '../types';
 import { Lock, Download, AlertCircle, CheckCircle2 } from 'lucide-react';
 import { cn } from '../lib/utils';
 
 export default function Import() {
   const [activeTab, setActiveTab] = useState<'paste' | 'extension'>('paste');
   const [pasteContent, setPasteContent] = useState('');
-  const [parsedData, setParsedData] = useState<Partial<SsiSnapshot> | null>(null);
+  const [parsedData, setParsedData] = useState<Partial<CreateSnapshotRequest> | null>(null);
   const [error, setError] = useState('');
-  const { user } = useAuth();
   const navigate = useNavigate();
+  const createSnapshot = useCreateSnapshot();
 
   const handleParse = () => {
     setError('');
     setParsedData(null);
 
     try {
-      // 1. Parse Component Scores
-      // Look for: "12.275  Establish your professional brand"
       const brandMatch = pasteContent.match(/(\d+(?:\.\d+)?)\s+Establish your professional brand/i);
       const peopleMatch = pasteContent.match(/(\d+(?:\.\d+)?)\s+Find the right people/i);
       const insightsMatch = pasteContent.match(/(\d+(?:\.\d+)?)\s+Engage with insights/i);
@@ -31,8 +27,6 @@ export default function Import() {
         throw new Error('Could not find all 4 component scores. Ensure you copied the "Four components of your score" section.');
       }
 
-      // 2. Parse Ranks
-      // Look for: "Industry SSI rank\nTop 65%"
       const industryRankMatch = pasteContent.match(/Industry SSI rank\s+Top\s+(\d+)%/i);
       const networkRankMatch = pasteContent.match(/Network SSI rank\s+Top\s+(\d+)%/i);
 
@@ -40,9 +34,6 @@ export default function Import() {
         throw new Error('Could not find Industry or Network ranks (e.g., "Industry SSI rank Top 65%").');
       }
 
-      // 3. Parse Averages
-      // Look for: "...industry have an average SSI of 31."
-      // Look for: "...network have an average SSI of 30."
       const industryAvgMatch = pasteContent.match(/industry have an average SSI of (\d+)/i);
       const networkAvgMatch = pasteContent.match(/network have an average SSI of (\d+)/i);
 
@@ -66,14 +57,11 @@ export default function Import() {
     }
   };
 
-  const handleSave = () => {
-    if (!parsedData || !user) return;
+  const handleSave = async () => {
+    if (!parsedData) return;
 
-    const snapshot: SsiSnapshot = {
-      id: uuidv4(),
-      userId: user.id,
-      date: new Date().toISOString().split('T')[0],
-      source: 'paste',
+    const payload: CreateSnapshotRequest = {
+      recordedAt: new Date().toISOString().split('T')[0],
       establishBrand: parsedData.establishBrand!,
       findPeople: parsedData.findPeople!,
       engageInsights: parsedData.engageInsights!,
@@ -84,8 +72,12 @@ export default function Import() {
       networkRankPercentile: parsedData.networkRankPercentile!,
     };
 
-    addSnapshot(snapshot);
-    navigate('/dashboard');
+    try {
+      await createSnapshot.mutateAsync(payload);
+      navigate('/dashboard');
+    } catch (err: any) {
+      setError(err.response?.data?.message || 'Failed to save snapshot');
+    }
   };
 
   return (
@@ -99,8 +91,8 @@ export default function Import() {
           <button
             className={cn(
               "px-6 py-4 text-sm font-semibold transition-colors",
-              activeTab === 'paste' 
-                ? "text-[#0a66c2] border-b-2 border-[#0a66c2]" 
+              activeTab === 'paste'
+                ? "text-[#0a66c2] border-b-2 border-[#0a66c2]"
                 : "text-[#00000099] hover:bg-[#f3f2ef]"
             )}
             onClick={() => setActiveTab('paste')}
@@ -110,8 +102,8 @@ export default function Import() {
           <button
             className={cn(
               "px-6 py-4 text-sm font-semibold transition-colors flex items-center gap-2",
-              activeTab === 'extension' 
-                ? "text-[#0a66c2] border-b-2 border-[#0a66c2]" 
+              activeTab === 'extension'
+                ? "text-[#0a66c2] border-b-2 border-[#0a66c2]"
                 : "text-[#00000099] hover:bg-[#f3f2ef]"
             )}
             onClick={() => setActiveTab('extension')}
@@ -188,9 +180,10 @@ export default function Import() {
                     </button>
                     <button
                       onClick={handleSave}
-                      className="bg-[#057642] text-white px-6 py-2 rounded-full font-semibold hover:bg-[#046236] transition-colors"
+                      disabled={createSnapshot.isPending}
+                      className="bg-[#057642] text-white px-6 py-2 rounded-full font-semibold hover:bg-[#046236] transition-colors disabled:opacity-50"
                     >
-                      Confirm & Save
+                      {createSnapshot.isPending ? 'Saving...' : 'Confirm & Save'}
                     </button>
                   </>
                 )}

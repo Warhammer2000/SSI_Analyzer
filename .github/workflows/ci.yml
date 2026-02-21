@@ -1,0 +1,73 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  backend:
+    name: Backend (build + test)
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: ssi_user
+          POSTGRES_PASSWORD: ssi_password
+          POSTGRES_DB: ssi_analyzer_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U ssi_user"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+          dotnet-quality: 'preview'
+
+      - name: Restore
+        run: dotnet restore SSI_Analyzer_backend/SsiAnalyzer.slnx
+
+      - name: Build
+        run: dotnet build SSI_Analyzer_backend/SsiAnalyzer.slnx --no-restore
+
+      - name: Test
+        run: dotnet test SSI_Analyzer_backend/SsiAnalyzer.slnx --no-build --verbosity normal
+        env:
+          ConnectionStrings__DefaultConnection: "Host=localhost;Port=5432;Database=ssi_analyzer_test;Username=ssi_user;Password=ssi_password"
+
+  frontend:
+    name: Frontend (lint + build)
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: SSI_Analyzer_frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+        working-directory: SSI_Analyzer_frontend
+
+      - name: Lint (TypeScript)
+        run: npx tsc --noEmit
+        working-directory: SSI_Analyzer_frontend
+
+      - name: Build
+        run: npm run build
+        working-directory: SSI_Analyzer_frontend

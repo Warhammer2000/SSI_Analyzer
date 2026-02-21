@@ -1,13 +1,12 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { v4 as uuidv4 } from 'uuid';
-import { addSnapshot } from '../lib/storage';
-import { SsiSnapshot } from '../types';
-import { useAuth } from '../contexts/AuthContext';
+import { useCreateSnapshot } from '../hooks/useSnapshots';
+import { CreateSnapshotRequest } from '../types';
 
 export default function NewSnapshot() {
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const createSnapshot = useCreateSnapshot();
+  const [error, setError] = useState('');
   const [formData, setFormData] = useState({
     date: new Date().toISOString().split('T')[0],
     establishBrand: '',
@@ -25,15 +24,12 @@ export default function NewSnapshot() {
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!user) return;
-    
-    const snapshot: SsiSnapshot = {
-      id: uuidv4(),
-      userId: user.id,
-      date: formData.date,
-      source: 'manual',
+    setError('');
+
+    const payload: CreateSnapshotRequest = {
+      recordedAt: formData.date,
       establishBrand: Number(formData.establishBrand),
       findPeople: Number(formData.findPeople),
       engageInsights: Number(formData.engageInsights),
@@ -44,8 +40,12 @@ export default function NewSnapshot() {
       networkRankPercentile: Number(formData.networkRankPercentile),
     };
 
-    addSnapshot(snapshot);
-    navigate('/dashboard');
+    try {
+      await createSnapshot.mutateAsync(payload);
+      navigate('/dashboard');
+    } catch (err: any) {
+      setError(err.response?.data?.message || 'Failed to save snapshot');
+    }
   };
 
   return (
@@ -53,7 +53,13 @@ export default function NewSnapshot() {
       <div className="px-6 py-4 border-b border-[#e0e0e0]">
         <h1 className="text-xl font-bold text-[#000000e6]">Record SSI Snapshot</h1>
       </div>
-      
+
+      {error && (
+        <div className="mx-6 mt-4 bg-[#ffebee] text-[#cc1016] p-3 rounded text-sm">
+          {error}
+        </div>
+      )}
+
       <form onSubmit={handleSubmit} className="p-6 space-y-6">
         <div>
           <label className="block text-sm font-semibold text-[#000000e6] mb-1">Date</label>
@@ -69,7 +75,7 @@ export default function NewSnapshot() {
 
         <div className="space-y-4">
           <h3 className="text-base font-semibold text-[#000000e6] border-b border-[#e0e0e0] pb-2">Component Scores</h3>
-          
+
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {[
               { name: 'establishBrand', label: 'Establish Professional Brand', helper: 'Score 0-25' },
@@ -99,7 +105,7 @@ export default function NewSnapshot() {
 
         <div className="space-y-4">
           <h3 className="text-base font-semibold text-[#000000e6] border-b border-[#e0e0e0] pb-2">Benchmark Data</h3>
-          
+
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-[#000000e6] mb-1">
@@ -167,9 +173,10 @@ export default function NewSnapshot() {
         <div className="pt-4 flex justify-end">
           <button
             type="submit"
-            className="bg-[#0a66c2] text-white px-6 py-2 rounded-full font-semibold hover:bg-[#004182] transition-colors"
+            disabled={createSnapshot.isPending}
+            className="bg-[#0a66c2] text-white px-6 py-2 rounded-full font-semibold hover:bg-[#004182] transition-colors disabled:opacity-50"
           >
-            Save Snapshot
+            {createSnapshot.isPending ? 'Saving...' : 'Save Snapshot'}
           </button>
         </div>
       </form>

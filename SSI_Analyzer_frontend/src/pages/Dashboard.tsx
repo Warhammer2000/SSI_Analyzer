@@ -1,44 +1,39 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { PieChart, Pie, Cell, ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, Legend, CartesianGrid } from 'recharts';
-import { ArrowUp, ArrowDown, Target, ChevronDown, ChevronUp, CheckCircle2, Plus, Import } from 'lucide-react';
-import { getSnapshots, markActionsAsDone, getCompletedActionsForDate } from '../lib/storage';
-import { SsiSnapshot, Recommendation } from '../types';
-import { generateRecommendations } from '../lib/recommendations';
+import { ArrowUp, ArrowDown, Target, ChevronDown, ChevronUp, CheckCircle2, Plus, Import, Loader2 } from 'lucide-react';
+import { parseRecommendation, ParsedRecommendation } from '../types';
 import { getGrade, getTotalScoreColor, COMPONENT_LABELS, COMPONENT_COLORS, cn } from '../lib/utils';
 import { format } from 'date-fns';
-import { useAuth } from '../contexts/AuthContext';
+import { useLatestSnapshot, useSnapshots, useTrends } from '../hooks/useSnapshots';
+import { useAnalysis, useGenerateAnalysis } from '../hooks/useAnalysis';
 
 export default function Dashboard() {
-  const [snapshots, setSnapshots] = useState<SsiSnapshot[]>([]);
   const [expandedRec, setExpandedRec] = useState<string | null>(null);
-  const [completedActions, setCompletedActions] = useState<string[]>([]);
-  const { user } = useAuth();
-  const today = new Date().toISOString().split('T')[0];
+  const { data: latestSnapshot, isLoading: loadingLatest } = useLatestSnapshot();
+  const { data: snapshots = [] } = useSnapshots();
+  const { data: trendData = [] } = useTrends();
+  const { data: rawRecommendations } = useAnalysis(latestSnapshot?.id);
+  const generateAnalysis = useGenerateAnalysis();
 
+  const recommendations: ParsedRecommendation[] = (rawRecommendations ?? latestSnapshot?.recommendations ?? []).map(parseRecommendation);
+
+  // Auto-generate analysis if latest snapshot has no recommendations
   useEffect(() => {
-    if (user) {
-      const data = getSnapshots(user.id);
-      setSnapshots(data);
-      setCompletedActions(getCompletedActionsForDate(user.id, today));
+    if (latestSnapshot && (!rawRecommendations || rawRecommendations.length === 0) && !latestSnapshot.recommendations?.length && !generateAnalysis.isPending) {
+      generateAnalysis.mutate(latestSnapshot.id);
     }
-  }, [user]);
+  }, [latestSnapshot?.id]);
 
-  const handleMarkAsDone = (rec: Recommendation, e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (!user) return;
-    // Generate IDs for actions in this recommendation
-    const actionIds = rec.actions.map((_, idx) => `${rec.id}-${idx}`);
-    markActionsAsDone(user.id, actionIds, today);
-    setCompletedActions(getCompletedActionsForDate(user.id, today));
-  };
+  if (loadingLatest) {
+    return (
+      <div className="flex items-center justify-center min-h-[60vh]">
+        <Loader2 className="w-8 h-8 animate-spin text-[#0a66c2]" />
+      </div>
+    );
+  }
 
-  const isRecCompleted = (rec: Recommendation) => {
-    const actionIds = rec.actions.map((_, idx) => `${rec.id}-${idx}`);
-    return actionIds.every(id => completedActions.includes(id));
-  };
-
-  if (snapshots.length === 0) {
+  if (!latestSnapshot) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh] text-center p-8 bg-white rounded-lg border border-[#e0e0e0] shadow-sm">
         <div className="bg-[#f3f2ef] p-4 rounded-full mb-4">
@@ -68,18 +63,14 @@ export default function Dashboard() {
     );
   }
 
-  const current = snapshots[0];
+  const current = latestSnapshot;
   const previous = snapshots.length > 1 ? snapshots[1] : null;
-  const totalScore = Math.round(current.establishBrand + current.findPeople + current.engageInsights + current.buildRelationships);
-  const recommendations = generateRecommendations(current);
+  const totalScore = current.totalScore;
 
   const renderRankChange = (currentRank: number, prevRank: number | undefined) => {
     if (!prevRank) return null;
-    const diff = prevRank - currentRank; // Lower rank (e.g. 1% vs 5%) is better? 
-    // Wait, prompt says "Top XX%". So Top 1% is better than Top 5%.
-    // If current is 1 (Top 1%) and prev was 5 (Top 5%), we improved by 4.
-    // So diff = prev - current. Positive means improvement.
-    
+    const diff = prevRank - currentRank;
+
     if (diff === 0) return <span className="text-[#00000099] text-xs ml-1">-</span>;
     const isImprovement = diff > 0;
     return (
@@ -172,20 +163,17 @@ export default function Dashboard() {
                 <span>100</span>
               </div>
               <div className="relative h-2 bg-[#f3f2ef] rounded-full">
-                {/* Industry Avg Marker */}
-                <div 
-                  className="absolute top-1/2 -translate-y-1/2 w-1 h-4 bg-[#00000099]" 
+                <div
+                  className="absolute top-1/2 -translate-y-1/2 w-1 h-4 bg-[#00000099]"
                   style={{ left: `${current.industryAverage}%` }}
                   title={`Industry Avg: ${current.industryAverage}`}
                 />
-                {/* Network Avg Marker */}
-                <div 
-                  className="absolute top-1/2 -translate-y-1/2 w-1 h-4 bg-[#0a66c2]" 
+                <div
+                  className="absolute top-1/2 -translate-y-1/2 w-1 h-4 bg-[#0a66c2]"
                   style={{ left: `${current.networkAverage}%` }}
                   title={`Network Avg: ${current.networkAverage}`}
                 />
-                {/* User Score Dot */}
-                <div 
+                <div
                   className="absolute top-1/2 -translate-y-1/2 w-4 h-4 rounded-full border-2 border-white shadow-sm"
                   style={{ left: `${totalScore}%`, backgroundColor: getTotalScoreColor(totalScore) }}
                   title={`Your Score: ${totalScore}`}
@@ -212,22 +200,22 @@ export default function Dashboard() {
         <div className="space-y-6">
           {(['establishBrand', 'findPeople', 'engageInsights', 'buildRelationships'] as const).map((key) => {
             const score = current[key];
-            const { grade, color, bg, hex } = getGrade(score);
+            const { grade, bg, hex } = getGrade(score);
             const label = COMPONENT_LABELS[key];
-            
+
             return (
               <div key={key} className="grid grid-cols-[1fr_auto] md:grid-cols-[200px_1fr_80px_40px] gap-4 items-center">
                 <span className="text-sm font-semibold text-[#000000e6]">{label}</span>
-                
+
                 <div className="h-2 bg-[#f3f2ef] rounded-full overflow-hidden w-full">
-                  <div 
+                  <div
                     className="h-full rounded-full transition-all duration-500"
                     style={{ width: `${(score / 25) * 100}%`, backgroundColor: hex }}
                   />
                 </div>
 
                 <span className="text-sm font-medium text-[#00000099] text-right">{score.toFixed(1)} / 25</span>
-                
+
                 <span className={cn("text-xs font-bold px-2 py-0.5 rounded text-white text-center", bg)}>
                   {grade}
                 </span>
@@ -242,118 +230,102 @@ export default function Dashboard() {
         <div className="flex items-center gap-2 mb-6">
           <Target className="w-6 h-6 text-[#0a66c2]" />
           <h3 className="text-lg font-bold text-[#000000e6]">Your Action Plan</h3>
+          {generateAnalysis.isPending && <Loader2 className="w-4 h-4 animate-spin text-[#00000099]" />}
         </div>
 
         <div className="space-y-4">
-          {recommendations.map((rec) => {
-            const completed = isRecCompleted(rec);
-            return (
-              <div 
-                key={rec.id} 
-                className={cn(
-                  "border rounded-lg overflow-hidden hover:shadow-md transition-shadow cursor-pointer",
-                  completed ? "border-[#057642] bg-[#f0f9f4]" : "border-[#e0e0e0]"
-                )}
-                onClick={() => setExpandedRec(expandedRec === rec.id ? null : rec.id)}
-              >
-                <div className="flex items-stretch min-h-[80px]">
-                  {/* Color Stripe */}
-                  <div 
-                    className="w-1 flex-shrink-0" 
-                    style={{ backgroundColor: COMPONENT_COLORS[rec.component] }}
-                  />
-                  
-                  <div className="flex-1 p-4 flex flex-col justify-center">
-                    <div className="flex items-start justify-between gap-4">
-                      <div>
-                        <div className="flex items-center gap-2 mb-1">
-                          <span className="bg-[#f3f2ef] text-[#00000099] text-xs font-bold px-2 py-0.5 rounded">
-                            P{rec.priority}
-                          </span>
-                          <h4 className={cn("font-bold", completed ? "text-[#057642] line-through" : "text-[#000000e6]")}>
-                            {rec.title}
-                          </h4>
-                          {completed && <CheckCircle2 className="w-4 h-4 text-[#057642]" />}
-                        </div>
-                        <p className="text-sm text-[#00000099]">{rec.subtitle}</p>
+          {recommendations.map((rec) => (
+            <div
+              key={rec.id}
+              className={cn(
+                "border rounded-lg overflow-hidden hover:shadow-md transition-shadow cursor-pointer",
+                rec.isCompleted ? "border-[#057642] bg-[#f0f9f4]" : "border-[#e0e0e0]"
+              )}
+              onClick={() => setExpandedRec(expandedRec === rec.id ? null : rec.id)}
+            >
+              <div className="flex items-stretch min-h-[80px]">
+                <div
+                  className="w-1 flex-shrink-0"
+                  style={{ backgroundColor: COMPONENT_COLORS[rec.componentKey] }}
+                />
+
+                <div className="flex-1 p-4 flex flex-col justify-center">
+                  <div className="flex items-start justify-between gap-4">
+                    <div>
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="bg-[#f3f2ef] text-[#00000099] text-xs font-bold px-2 py-0.5 rounded">
+                          P{rec.priority}
+                        </span>
+                        <h4 className={cn("font-bold", rec.isCompleted ? "text-[#057642] line-through" : "text-[#000000e6]")}>
+                          {rec.title}
+                        </h4>
+                        {rec.isCompleted && <CheckCircle2 className="w-4 h-4 text-[#057642]" />}
                       </div>
-                      {expandedRec === rec.id ? (
-                        <ChevronUp className="w-5 h-5 text-[#00000099]" />
-                      ) : (
-                        <ChevronDown className="w-5 h-5 text-[#00000099]" />
-                      )}
+                      <p className="text-sm text-[#00000099]">{rec.description}</p>
                     </div>
+                    {expandedRec === rec.id ? (
+                      <ChevronUp className="w-5 h-5 text-[#00000099]" />
+                    ) : (
+                      <ChevronDown className="w-5 h-5 text-[#00000099]" />
+                    )}
                   </div>
                 </div>
+              </div>
 
-                {expandedRec === rec.id && (
-                  <div className="bg-[#f9f9f9] p-4 border-t border-[#e0e0e0]">
-                    <ul className="space-y-3 mb-4">
-                      {rec.actions.map((action, idx) => (
-                        <li key={idx} className="flex items-start gap-2 text-sm text-[#000000e6]">
-                          <CheckCircle2 className="w-4 h-4 text-[#0a66c2] mt-0.5 flex-shrink-0" />
-                          <span>{action}</span>
-                        </li>
-                      ))}
-                    </ul>
-                    <div className="flex items-center justify-between">
+              {expandedRec === rec.id && (
+                <div className="bg-[#f9f9f9] p-4 border-t border-[#e0e0e0]">
+                  <ul className="space-y-3 mb-4">
+                    {rec.actions.map((action, idx) => (
+                      <li key={idx} className="flex items-start gap-2 text-sm text-[#000000e6]">
+                        <CheckCircle2 className="w-4 h-4 text-[#0a66c2] mt-0.5 flex-shrink-0" />
+                        <span>{action}</span>
+                      </li>
+                    ))}
+                  </ul>
+                  <div className="flex items-center justify-between">
+                    {rec.timeEstimate && (
                       <span className="text-xs font-semibold text-[#00000099] bg-[#e0e0e0] px-2 py-1 rounded">
                         {rec.timeEstimate}
                       </span>
-                      {!completed && (
-                        <button 
-                          className="text-sm font-semibold text-[#0a66c2] hover:underline"
-                          onClick={(e) => handleMarkAsDone(rec, e)}
-                        >
-                          Mark as Done
-                        </button>
-                      )}
-                      {completed && (
-                        <span className="text-sm font-semibold text-[#057642]">
-                          Completed today
-                        </span>
-                      )}
-                    </div>
+                    )}
+                    {rec.expectedImpact && (
+                      <span className="text-xs text-[#057642] font-semibold">
+                        {rec.expectedImpact}
+                      </span>
+                    )}
                   </div>
-                )}
-              </div>
-            );
-          })}
+                </div>
+              )}
+            </div>
+          ))}
         </div>
       </div>
 
       {/* Card 4: Trends */}
-      {snapshots.length >= 2 && (
+      {trendData.length >= 2 && (
         <div className="bg-white rounded-lg border border-[#e0e0e0] shadow-sm p-6">
           <h3 className="text-lg font-bold text-[#000000e6] mb-6">Score Trends</h3>
           <div className="h-[300px] w-full">
             <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={[...snapshots].reverse()}>
+              <LineChart data={trendData}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e0e0e0" />
-                <XAxis 
-                  dataKey="date" 
+                <XAxis
+                  dataKey="recordedAt"
                   tickFormatter={(date) => format(new Date(date), 'MMM d')}
                   stroke="#00000099"
                   tick={{ fontSize: 12 }}
                 />
-                <YAxis 
-                  domain={[0, 100]} 
+                <YAxis
+                  domain={[0, 100]}
                   stroke="#00000099"
                   tick={{ fontSize: 12 }}
                 />
-                <Tooltip 
+                <Tooltip
                   contentStyle={{ backgroundColor: '#fff', border: '1px solid #e0e0e0', borderRadius: '8px' }}
                   labelFormatter={(date) => format(new Date(date), 'MMM d, yyyy')}
                 />
                 <Legend />
-                <Line 
-                  type="monotone" 
-                  dataKey={(s) => s.establishBrand + s.findPeople + s.engageInsights + s.buildRelationships} 
-                  name="Total Score" 
-                  stroke="#000000e6" 
-                  strokeWidth={2}
-                  dot={{ r: 4 }}
-                />
+                <Line type="monotone" dataKey="totalScore" name="Total Score" stroke="#000000e6" strokeWidth={2} dot={{ r: 4 }} />
                 <Line type="monotone" dataKey="establishBrand" name="Brand" stroke={COMPONENT_COLORS.establishBrand} strokeWidth={2} dot={false} />
                 <Line type="monotone" dataKey="findPeople" name="Find People" stroke={COMPONENT_COLORS.findPeople} strokeWidth={2} dot={false} />
                 <Line type="monotone" dataKey="engageInsights" name="Insights" stroke={COMPONENT_COLORS.engageInsights} strokeWidth={2} dot={false} />

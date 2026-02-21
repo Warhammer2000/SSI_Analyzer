@@ -23,6 +23,7 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\SsiAnalyzer.Application\SsiAnalyzer.Application.csproj" />
     <ProjectReference Include="..\..\src\SsiAnalyzer.Domain\SsiAnalyzer.Domain.csproj" />
+    <ProjectReference Include="..\..\src\SsiAnalyzer.Infrastructure\SsiAnalyzer.Infrastructure.csproj" />
   </ItemGroup>
 
 </Project>

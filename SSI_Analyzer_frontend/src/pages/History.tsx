@@ -1,43 +1,49 @@
-import React, { useEffect, useState } from 'react';
-import { getSnapshots, deleteSnapshot } from '../lib/storage';
-import { SsiSnapshot } from '../types';
+import React, { useState } from 'react';
 import { format } from 'date-fns';
-import { Trash2, Download, ChevronDown, ChevronUp, Share2 } from 'lucide-react';
-import { generateRecommendations } from '../lib/recommendations';
-import { useAuth } from '../contexts/AuthContext';
+import { Trash2, Download, ChevronDown, ChevronUp, Share2, Loader2 } from 'lucide-react';
+import { useSnapshots, useDeleteSnapshot } from '../hooks/useSnapshots';
+import { useAnalysis } from '../hooks/useAnalysis';
+import { parseRecommendation } from '../types';
+
+function SnapshotRecommendations({ snapshotId }: { snapshotId: string }) {
+  const { data: recommendations = [] } = useAnalysis(snapshotId);
+  const parsed = recommendations.map(parseRecommendation);
+
+  if (parsed.length === 0) {
+    return <p className="text-sm text-[#00000099]">No recommendations generated yet.</p>;
+  }
+
+  return (
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      {parsed.slice(0, 4).map((rec) => (
+        <div key={rec.id} className="bg-white p-3 rounded border border-[#e0e0e0] text-sm">
+          <p className="font-semibold text-[#0a66c2] mb-1">{rec.title}</p>
+          <ul className="list-disc list-inside text-[#00000099] text-xs">
+            {rec.actions.slice(0, 2).map((action, i) => (
+              <li key={i}>{action}</li>
+            ))}
+          </ul>
+        </div>
+      ))}
+    </div>
+  );
+}
 
 export default function History() {
-  const [snapshots, setSnapshots] = useState<SsiSnapshot[]>([]);
+  const { data: snapshots = [], isLoading } = useSnapshots();
   const [expandedRow, setExpandedRow] = useState<string | null>(null);
-  const { user } = useAuth();
-
-  useEffect(() => {
-    if (user) {
-      loadData();
-    }
-  }, [user]);
-
-  const loadData = () => {
-    if (user) {
-      const data = getSnapshots(user.id);
-      setSnapshots(data);
-    }
-  };
+  const deleteSnapshotMutation = useDeleteSnapshot();
 
   const handleDelete = (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
     if (window.confirm('Are you sure you want to delete this snapshot?')) {
-      deleteSnapshot(id);
-      loadData();
+      deleteSnapshotMutation.mutate(id);
     }
   };
 
-  const handleShare = (snapshot: SsiSnapshot, e: React.MouseEvent) => {
+  const handleShare = (snapshot: (typeof snapshots)[0], e: React.MouseEvent) => {
     e.stopPropagation();
-    // In a real app, this would generate a public link.
-    // For now, we'll copy a summary to clipboard.
-    const total = (snapshot.establishBrand + snapshot.findPeople + snapshot.engageInsights + snapshot.buildRelationships).toFixed(1);
-    const text = `My LinkedIn SSI Score: ${total}/100\nDate: ${snapshot.date}\nIndustry Rank: Top ${snapshot.industryRankPercentile}%\nNetwork Rank: Top ${snapshot.networkRankPercentile}%`;
+    const text = `My LinkedIn SSI Score: ${snapshot.totalScore}/100\nDate: ${snapshot.recordedAt}\nIndustry Rank: Top ${snapshot.industryRankPercentile}%\nNetwork Rank: Top ${snapshot.networkRankPercentile}%`;
     navigator.clipboard.writeText(text);
     alert('Snapshot summary copied to clipboard!');
   };
@@ -46,31 +52,17 @@ export default function History() {
     if (snapshots.length === 0) return;
 
     const headers = [
-      'Date',
-      'Total Score',
-      'Establish Brand',
-      'Find People',
-      'Engage Insights',
-      'Build Relationships',
-      'Industry Rank',
-      'Network Rank'
+      'Date', 'Total Score', 'Establish Brand', 'Find People',
+      'Engage Insights', 'Build Relationships', 'Industry Rank', 'Network Rank'
     ];
 
     const csvContent = [
       headers.join(','),
-      ...snapshots.map(s => {
-        const total = (s.establishBrand + s.findPeople + s.engageInsights + s.buildRelationships).toFixed(1);
-        return [
-          s.date,
-          total,
-          s.establishBrand,
-          s.findPeople,
-          s.engageInsights,
-          s.buildRelationships,
-          s.industryRankPercentile,
-          s.networkRankPercentile
-        ].join(',');
-      })
+      ...snapshots.map(s => [
+        s.recordedAt, s.totalScore, s.establishBrand, s.findPeople,
+        s.engageInsights, s.buildRelationships,
+        s.industryRankPercentile, s.networkRankPercentile
+      ].join(','))
     ].join('\n');
 
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
@@ -83,6 +75,14 @@ export default function History() {
     link.click();
     document.body.removeChild(link);
   };
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-[40vh]">
+        <Loader2 className="w-8 h-8 animate-spin text-[#0a66c2]" />
+      </div>
+    );
+  }
 
   if (snapshots.length === 0) {
     return (
@@ -122,20 +122,18 @@ export default function History() {
             </thead>
             <tbody>
               {snapshots.map((snapshot) => {
-                const total = (snapshot.establishBrand + snapshot.findPeople + snapshot.engageInsights + snapshot.buildRelationships).toFixed(1);
                 const isExpanded = expandedRow === snapshot.id;
-                const recs = generateRecommendations(snapshot);
 
                 return (
                   <React.Fragment key={snapshot.id}>
-                    <tr 
+                    <tr
                       className="border-b border-[#e0e0e0] hover:bg-[#f9f9f9] cursor-pointer transition-colors"
                       onClick={() => setExpandedRow(isExpanded ? null : snapshot.id)}
                     >
                       <td className="p-4 text-sm font-medium text-[#000000e6]">
-                        {format(new Date(snapshot.date), 'MMM d, yyyy')}
+                        {format(new Date(snapshot.recordedAt), 'MMM d, yyyy')}
                       </td>
-                      <td className="p-4 text-sm font-bold text-[#000000e6]">{total}</td>
+                      <td className="p-4 text-sm font-bold text-[#000000e6]">{snapshot.totalScore}</td>
                       <td className="p-4 text-sm text-[#00000099] hidden md:table-cell">{snapshot.establishBrand}</td>
                       <td className="p-4 text-sm text-[#00000099] hidden md:table-cell">{snapshot.findPeople}</td>
                       <td className="p-4 text-sm text-[#00000099] hidden md:table-cell">{snapshot.engageInsights}</td>
@@ -166,18 +164,7 @@ export default function History() {
                         <td colSpan={8} className="p-4 border-b border-[#e0e0e0]">
                           <div className="space-y-2">
                             <h4 className="text-sm font-bold text-[#000000e6] mb-2">Recommendations from this snapshot:</h4>
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                              {recs.slice(0, 4).map((rec, idx) => (
-                                <div key={idx} className="bg-white p-3 rounded border border-[#e0e0e0] text-sm">
-                                  <p className="font-semibold text-[#0a66c2] mb-1">{rec.title}</p>
-                                  <ul className="list-disc list-inside text-[#00000099] text-xs">
-                                    {rec.actions.slice(0, 2).map((action, i) => (
-                                      <li key={i}>{action}</li>
-                                    ))}
-                                  </ul>
-                                </div>
-                              ))}
-                            </div>
+                            <SnapshotRecommendations snapshotId={snapshot.id} />
                           </div>
                         </td>
                       </tr>

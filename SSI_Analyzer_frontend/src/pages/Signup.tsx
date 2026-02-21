@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import { useRegisterMutation } from '../hooks/useAuth';
 import { BarChart3 } from 'lucide-react';
 
 export default function Signup() {
@@ -10,8 +11,9 @@ export default function Signup() {
   const [error, setError] = useState('');
   const { signup } = useAuth();
   const navigate = useNavigate();
+  const registerMutation = useRegisterMutation();
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
 
@@ -28,8 +30,13 @@ export default function Signup() {
       return;
     }
 
-    signup(email);
-    navigate('/dashboard');
+    try {
+      const result = await registerMutation.mutateAsync({ email, password });
+      signup(result.token, result.userId, result.email);
+      navigate('/dashboard');
+    } catch (err: any) {
+      setError(err.response?.data?.message || 'Registration failed. Please try again.');
+    }
   };
 
   return (
@@ -82,9 +89,10 @@ export default function Signup() {
           </div>
           <button
             type="submit"
-            className="w-full bg-[#0a66c2] text-white py-3 rounded-full font-bold hover:bg-[#004182] transition-colors mt-2"
+            disabled={registerMutation.isPending}
+            className="w-full bg-[#0a66c2] text-white py-3 rounded-full font-bold hover:bg-[#004182] transition-colors mt-2 disabled:opacity-50"
           >
-            Create Account
+            {registerMutation.isPending ? 'Creating account...' : 'Create Account'}
           </button>
         </form>
 
