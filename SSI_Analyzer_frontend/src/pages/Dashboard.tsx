@@ -65,7 +65,7 @@ export default function Dashboard() {
 
   const current = latestSnapshot;
   const previous = snapshots.length > 1 ? snapshots[1] : null;
-  const totalScore = current.totalScore;
+  const totalScore = Math.round(current.totalScore * 10) / 10;
 
   const renderRankChange = (currentRank: number, prevRank: number | undefined) => {
     if (!prevRank) return null;
